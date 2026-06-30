@@ -1,0 +1,93 @@
+// Buffer register for synchronizing D with HCLK
+module bufg();
+  input  D;
+  input  HCLK;
+  input  HRESETn;
+  output reg Q;
+
+  always @(posedge HCLK or negedge HRESETn) begin
+    if(!HRESETn)
+      Q <= 0;
+    else
+      Q <= D;
+  end
+endmodule
+
+// Address decoder: selects slave based on HADDR[31:28]
+module address_decoder(
+  input  [31:0] HADDR,
+  output reg HSEL1,
+  output reg HSEL2
+);
+  always @(*) begin
+    HSEL1 = 0;
+    HSEL2 = 0;
+    case(HADDR[31:28])
+      4'h0: HSEL1 = 1;   // Slave1 region
+      4'h1: HSEL2 = 1;   // Slave2 region
+      default: ;         // No slave selected
+    endcase
+  end
+endmodule
+
+// Top-level AHB fabric: single master, two slaves
+module AHB_top(
+  // Master
+  output reg [31:0] HADDR,
+  output reg [1:0]  HTRANS,
+  output reg [2:0]  HSIZE,
+  output reg        HWRITE,
+  output reg [31:0] HWDATA,
+  input             HCLK,
+  input             HRESETn,
+  input             HREADY,
+  input             HRESP,
+  input      [31:0] HRDATA,
+
+  // Slave1
+  input             HSEL1,
+  input      [31:0] HADRR1,
+  input      [1:0]  HTRANS1,
+  input             HWRITE1,
+  input      [2:0]  HSIZE1,
+  input      [31:0] HWDATA1,
+  input             HREADY1,
+  output reg        HREADYOUT1,
+  output reg        HRESP1,
+  output reg [31:0] HRDATA1,
+
+  // Slave2
+  input             HSEL2,
+  input      [31:0] HADRR2,
+  input      [1:0]  HTRANS2,
+  input             HWRITE2,
+  input      [2:0]  HSIZE2,
+  input      [31:0] HWDATA2,
+  input             HREADY2,
+  output reg        HREADYOUT2,
+  output reg        HRESP2,
+  output reg [31:0] HRDATA2
+);
+
+  // Simple muxing of HRDATA and HREADYOUT based on HSEL
+  always @(posedge HCLK or negedge HRESETn) begin
+    if(!HRESETn) begin
+      HRDATA <= 0;
+      HRESP  <= 0;
+      HREADY <= 0;
+
+    end else begin
+      if(HSEL1) begin
+      HRDATA <= HRDATA1;
+      HRESP  <= HRESP1;
+      HREADY <= HREADYOUT1;
+      end
+      if(HSEL2) begin
+      HRDATA <= HRDATA2;
+      HRESP  <= HRESP2;
+      HREADY <= HREADYOUT2;
+      end
+    end
+  end
+
+endmodule
